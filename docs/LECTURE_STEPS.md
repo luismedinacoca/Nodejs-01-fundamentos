@@ -451,6 +451,203 @@ console.log("Total React Word: ", reactWordCount);  // 62
 
 
 
+<br>
+
+## 🔧 015. Lesson 015 — *Execution order - Intro*
+
+### 📑 Table of Contents:
+- [015. Lesson 015 — Execution order - Intro](#-015-lesson-015--execution-order---intro)
+- [015.1 Context](#-0151-context)
+- [015.2 Updating code/theory according the context](#️-0152-updating-codetheory-according-the-context)
+  - [015.2.1 Create app4.js file](#01521-create-app4js-file)
+  - [015.2.2 Synchronous vs asynchronous execution with setTimeout](#01522-synchronous-vs-asynchronous-execution-with-settimeout)
+  - [015.2.3 Equal delay demonstration (100ms)](#01523-equal-delay-demonstration-100ms)
+  - [015.2.4 Minimum delay edge case (0ms vs 1ms)](#01524-minimum-delay-edge-case-0ms-vs-1ms)
+- [015.3 Issues](#-0153-issues)
+- [015.4 Pending Fixes (TODO)](#-0154-pending-fixes-todo)
+
+### 🧠 015.1 Context:
+
+This lesson introduces **execution order** in Node.js (and JavaScript in general), focusing on how synchronous code runs before asynchronous callbacks, and how the **event loop** schedules deferred work such as `setTimeout` callbacks.
+
+**Key Concepts:**
+1. **Synchronous execution**: Code runs top-to-bottom, line by line. `console.log("Program started")` and `console.log("Program ended")` execute immediately and in order.
+2. **Asynchronous execution**: `setTimeout(callback, delay)` registers a callback to run *after* the specified delay (in milliseconds). The callback does *not* run immediately; it is queued for later.
+3. **Event loop**: Node.js uses an event-driven model. After the main script (call stack) empties, the event loop processes queued tasks. Timeouts with the same or similar delays may execute in registration order, but the exact order can vary at the millisecond boundary (e.g. 0ms vs 1ms).
+4. **Minimum delay**: Browsers and Node.js enforce a minimum delay (often ~4ms for nested timeouts). Even `setTimeout(fn, 0)` does not run instantly—it runs after the current synchronous code and any already-queued microtasks complete.
+
+**Advantages:**
+- Non-blocking: long delays (e.g. 3000ms) do not freeze the program; other code can run.
+- Predictable for large gaps: a 3s timeout will always complete after shorter timeouts (0ms, 100ms) once they execute.
+- Simple mental model for "run later": `setTimeout` clearly defers execution.
+
+**Disadvantages / Gotchas:**
+- Non-deterministic order for equal or near-equal delays (0ms vs 1ms): execution order is not guaranteed by the spec when delays are very close.
+- Clock skew: `setTimeout` is not a precise timer; it guarantees "at least" the delay, not "exactly."
+- Callback registration order vs. execution order: with the same delay, callbacks typically run in registration order, but 0ms vs 1ms can produce surprising results across different environments.
+
+**When to Consider Alternatives:**
+- Use `setImmediate` (Node.js) for "run after current I/O" when order relative to I/O matters.
+- Use `queueMicrotask` or `Promise.then` for microtasks when you need higher-priority deferred work.
+- Use `setInterval` or recursive `setTimeout` for periodic tasks; be aware of drift over time.
+
+---
+
+### ⚙️ 015.2 Updating code/theory according the context:
+
+#### **Summary**
+- This section demonstrates execution order: synchronous code runs first, then `setTimeout` callbacks run in order influenced by delay and registration.
+- It solves the misconception that code executes in literal top-to-bottom order; instead, async callbacks run after the main script and are ordered by delay (and registration when delays match).
+- The subsections progress from file creation (015.2.1), basic 0ms vs 3000ms example (015.2.2), equal-delay case (015.2.3), and a subtle 0ms vs 1ms edge case (015.2.4) that illustrates non-determinism.
+
+---
+
+#### 015.2.1 Create `app4.js` file
+
+**Subsection Summary:**
+- Creates an empty `app4.js` file in the project root using the `touch` command.
+- Prepares the script file that will demonstrate execution order with `setTimeout`.
+- Follows the same workflow as previous lessons for creating JavaScript entry points.
+
+```bash
+touch app4.js
+```
+
+---
+
+#### 015.2.2 Synchronous vs asynchronous execution with setTimeout
+
+**Subsection Summary:**
+- Logs "Program started" and "Program ended" synchronously; they appear first because they run on the main thread.
+- Registers three `setTimeout` callbacks: one with 3000ms, two with 0ms. The 0ms callbacks run after the main script; the 3000ms callback runs last.
+- Demonstrates that `setTimeout(fn, 0)` does not run immediately—it defers until the current synchronous code and event loop turn complete.
+- Establishes the core pattern: sync first, then async in order of delay (0ms before 3000ms).
+
+```js
+/* app4.js */
+console.log("Program started");
+
+setTimeout(() => {
+    console.log("1️⃣  First timeout");
+}, 3000);
+
+setTimeout(() => {
+    console.log("2️⃣  Second timeout");
+}, 0);
+
+setTimeout(() => {
+    console.log("3️⃣  Third timeout");
+}, 0);
+
+console.log("🔚  Program ended");
+```
+
+Outcome:
+
+```
+🏁  Program started
+🔚  Program ended
+2️⃣  Second timeout
+3️⃣  Third timeout
+1️⃣  First timeout. (🤔 delay)
+```
+
+---
+
+#### 015.2.3 Equal delay demonstration (100ms)
+
+**Subsection Summary:**
+- Uses delays of 3000ms, 100ms, and 100ms. The two 100ms callbacks run before the 3000ms callback.
+- When delays are equal, callbacks typically execute in registration order: "2️⃣" before "3️⃣".
+- Reinforces that synchronous code ("Program started", "Program ended") always runs first.
+
+```js
+/* app4.js */
+console.log("🏁  Program started");
+
+setTimeout(() => {
+    console.log("1️⃣  First timeout");
+}, 3000);
+
+setTimeout(() => {
+    console.log("2️⃣  Second timeout");
+}, 100);
+
+setTimeout(() => {
+    console.log("3️⃣  Third timeout");
+}, 100);
+
+console.log("🔚  Program ended");
+```
+
+Outcome:
+```
+🏁  Program started
+🔚  Program ended
+2️⃣  Second timeout
+3️⃣  Third timeout
+1️⃣  First timeout
+```
+
+---
+
+#### 015.2.4 Minimum delay edge case (0ms vs 1ms)
+
+**Subsection Summary:**
+- Uses delays of 3000ms, 1ms, and 0ms. The relative order of the 1ms and 0ms callbacks is implementation-dependent.
+- Some runtimes may run the 0ms callback first; others may run the 1ms callback first or interleave them—hence the "??" in the outcome.
+- Illustrates that very small delays (0–1ms) should not be relied upon for strict ordering; use explicit sequencing (callbacks, promises) if order matters.
+- The "??" annotations highlight the non-deterministic behavior at the millisecond boundary.
+
+```js
+/* app4.js */
+console.log("🏁  Program started");
+
+setTimeout(() => {
+    console.log("1️⃣  First timeout");
+}, 3000);
+
+setTimeout(() => {
+    console.log("2️⃣  Second timeout");
+}, 1);
+
+setTimeout(() => {
+    console.log("3️⃣  Third timeout");
+}, 0);
+
+console.log("🔚  Program ended");
+```
+
+Outcome:
+
+```
+🏁  Program started
+🔚  Program ended
+2️⃣  Second timeout ??
+3️⃣  Third timeout  ??
+1️⃣  First timeout
+```
+
+---
+
+### 🐞 015.3 Issues:
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Non-deterministic order for 0ms vs 1ms delays | ℹ️ Informational | `app4.js` (015.2.4) |
+| Inconsistent emoji/format in outcome vs code | ℹ️ Low Priority | `docs/LECTURE_STEPS.md` 015.2.2 |
+| Missing event-loop explanation for beginners | ℹ️ Informational | Lesson 015.1 |
+
+---
+
+### 🧱 015.4 Pending Fixes (TODO)
+
+- [ ] Align outcome text in 015.2.2: use "🏁 Program started" consistently and fix "First timeout. (🤔 delay)" to "First timeout" if desired.
+- [ ] Add a brief in-code comment in `app4.js` explaining that `setTimeout(fn, 0)` defers until after synchronous code (e.g. `// Runs after "Program ended" due to event loop`).
+- [ ] For strict ordering when both delays are 0–1ms, consider documenting an alternative (e.g. `queueMicrotask` or chained callbacks) in 015.1 or 015.2.4.
+
+[↑ top — 015. Lesson 015 — Execution order - Intro](#-015-lesson-015--execution-order---intro)
+
 
 
 
