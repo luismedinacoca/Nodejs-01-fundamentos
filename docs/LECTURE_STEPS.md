@@ -283,6 +283,174 @@ node app2
 
 
 
+<br>
+
+## 🔧 014. Lesson 014 — *Task - Word counter*
+
+### 📑 Table of Contents:
+- [014. Lesson 014 — Task - Word counter](#-014-lesson-014--task---word-counter)
+- [014.1 Context](#-0141-context)
+- [014.2 Updating code/theory according the context](#️-0142-updating-codetheory-according-the-context)
+  - [014.2.1 Create app3.js file](#01421-create-app3js-file)
+  - [014.2.2 Implement word-based counting with split and filter](#01422-implement-word-based-counting-with-split-and-filter)
+  - [014.2.3 Implement occurrence-based counting with match](#01423-implement-occurrence-based-counting-with-match)
+  - [014.2.4 Comparison of counting methods](#01424-comparison-of-counting-methods)
+- [014.3 Issues](#-0143-issues)
+- [014.4 Pending Fixes (TODO)](#-0144-pending-fixes-todo)
+
+### 🧠 014.1 Context:
+
+This lesson covers how to build a word counter in Node.js that counts occurrences of a pattern (e.g. "react") in a text file. It demonstrates two different counting strategies and explains why they produce different results depending on how you define a "word" vs. a "substring occurrence."
+
+**Key Concepts:**
+1. **Word-based counting**: Splitting text by spaces (`split(' ')`) and filtering tokens gives you space-separated words that match a pattern. This excludes matches inside hyphenated or slash-separated segments (e.g. `@tanstack/react-query`).
+2. **Occurrence-based counting**: Using `String.prototype.match()` with a global regex counts every occurrence of the pattern in the entire string, regardless of surrounding characters.
+3. **Regex flags**: `i` (case-insensitive) and `g` (global) ensure all matches are found regardless of case.
+4. **Input file**: The script reads `README.md` as the sample text; it expects the file to exist in the project root (same as Lesson 013).
+
+**Advantages:**
+- Clear comparison of two common counting approaches.
+- Reinforces FileSystem usage (`fs.readFileSync`) from Lesson 013.
+- Highlights the importance of defining requirements (word vs. substring) before choosing a method.
+- No external dependencies; uses built-in `fs` and `String` methods.
+
+**Disadvantages / Gotchas:**
+- `split(' ')` is naive: consecutive spaces, newlines, or punctuation can create empty or odd tokens; consider `split(/\s+/)` for better tokenization.
+- `content.match(/react/ig)` returns `null` when there are no matches; calling `.length` on `null` throws. Always check for `null` before `.length`.
+- Relative path `README.md` relies on `process.cwd()`; running from another directory causes "ENOENT".
+- No error handling; missing or unreadable `README.md` will crash the script.
+
+**When to Consider Alternatives:**
+- Use `split(/\s+/)` or a proper tokenizer (e.g. `natural`, ` compromise`) for more accurate word boundaries.
+- Use `content.match(/pattern/g) ?? []` to safely handle zero matches.
+- Add `try/catch` around file operations for robustness.
+- For large files, consider streaming or chunked processing to avoid loading the whole file into memory.
+
+---
+
+### ⚙️ 014.2 Updating code/theory according the context:
+
+#### **Summary**
+- This section walks through creating a word counter script (`app3.js`) that reads `README.md` and counts how many times "react" appears.
+- It solves the task of comparing two counting strategies: word-based (split + filter) vs. occurrence-based (match with regex).
+- The subsections progress from file creation (014.2.1), to the first implementation (014.2.2), then the refactored version (014.2.3), and finally a comparison table (014.2.4).
+- The lesson teaches that the choice of method depends on whether you want to count "words containing react" or "every substring 'react'".
+
+---
+
+#### 014.2.1 Create `app3.js` file
+
+**Subsection Summary:**
+- Creates an empty `app3.js` file in the project root using the `touch` command.
+- Prepares the script file that will implement the word counter logic.
+- Follows the same workflow as Lessons 012 and 013 for creating JavaScript entry points.
+
+```bash
+touch app3.js
+```
+
+---
+
+#### 014.2.2 Implement word-based counting with split and filter
+
+**Subsection Summary:**
+- Reads `README.md` using `fs.readFileSync` and splits the content by spaces into word tokens.
+- Filters tokens that contain "react" (case-insensitive) using `filter` with `RegExp.prototype.test()` or `String.prototype.match()`.
+- Counts only space-separated words that contain the pattern; hyphenated or slash-separated segments (e.g. `@tanstack/react-query`, `preact`) may be counted or not depending on tokenization.
+- Produces ~45–55 matches on a typical React project `README.md` because it counts words, not substring occurrences.
+
+```js
+/* app3.js */
+const fs = require('fs');
+
+const content = fs.readFileSync('README.md', 'utf-8');
+
+const wordCount = content.split(' ');
+
+const reactWordCount = wordCount.filter( word => /react/gi.test(word)).length;
+
+const reactWordCountMatch = wordCount.filter( word => word.match(/react/gi)).length;
+
+console.log("Total React Word: ", reactWordCount);
+console.log("Total React Word Match: ", reactWordCountMatch); // 51
+```
+
+---
+
+#### 014.2.3 Implement occurrence-based counting with match
+
+**Subsection Summary:**
+- Replaces the split/filter approach with `content.match(/react/ig)`, which returns an array of every occurrence of "react" in the string.
+- Counts substring occurrences anywhere in the text (including inside URLs, package names like `@tanstack/react-query`, and hyphenated words).
+- Produces ~62 occurrences on a typical React `README.md`, higher than the word-based method because more matches are found inside non-space-separated tokens.
+- The commented-out code preserves the previous implementation for reference.
+
+```js
+/* app3.js */
+const fs = require('fs');
+
+const content = fs.readFileSync('README.md', 'utf-8');
+
+//const wordCount = content.split(' ');
+// const reactWordCount = wordCount.filter( word => /react/gi.test(word)).length;
+// const reactWordCountMatch = wordCount.filter( word => word.match(/react/gi)).length;
+// console.log("Total React Word: ", reactWordCount);
+// console.log("Total React Word Match: ", reactWordCountMatch);
+
+const reactWordCount = content.match(/react/ig ?? []).length;
+
+console.log("Total React Word: ", reactWordCount);  // 62
+```
+
+---
+
+#### 014.2.4 Comparison of counting methods
+
+**Subsection Summary:**
+- Provides a side-by-side table comparing `split(' ').filter(/react/gi.test)` vs. `match(/react/ig)`.
+- Clarifies what each method counts (words vs. occurrences) and gives concrete examples of matches that count or do not count.
+- Helps choose the right approach based on requirements: word frequency vs. total substring frequency.
+- Typical results for a React project README are ~45–55 (word-based) and ~60–80+ (occurrence-based).
+
+| Method                                 | What it really counts                                | Example that counts                         | Example that does NOT count        | Typical result in a React project README |
+|----------------------------------------|------------------------------------------------------|---------------------------------------------|------------------------------------|------------------------------------------|
+| split(' ').filter(/react/gi.test)     | Words ***separated by spaces*** that contain "react"      | react, React, react-dom, create-react-app  | @tanstack/react-query, preact, reactjs | ~45–55                                   |
+| match(/react/ig)                      | Any occurrence of "react" anywhere in the text      | react, @tanstack/react-query, reacthookform | —                                  | ~60–80+                                  |
+
+---
+
+### 🐞 014.3 Issues:
+
+- `content.match(/react/ig)` returns `null` when there are no matches; calling `.length` on `null` throws `TypeError`.
+- Relative path `README.md` assumes execution from the project root; running from another directory causes "ENOENT: no such file or directory."
+- No error handling for missing or unreadable `README.md`; the script crashes instead of failing gracefully.
+- `split(' ')` tokenization is naive: multiple spaces, newlines, and punctuation produce empty or unexpected tokens.
+- Synchronous `fs.readFileSync` blocks the event loop; acceptable for scripts but not ideal for larger or concurrent workflows.
+- Commented-out code in `app3.js` adds noise; consider removing or documenting why it is kept.
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| `match()` returns `null` for zero matches; `.length` throws | ⚠️ Identified | `app3.js:14` |
+| Relative path depends on `process.cwd()` | ⚠️ Identified | `app3.js:3` |
+| No try/catch for file operations | ⚠️ Identified | `app3.js:3` |
+| Naive `split(' ')` tokenization | ℹ️ Informational | `app3.js` (014.2.2) |
+| Blocking sync API usage | ℹ️ Low Priority | `app3.js` |
+| Commented-out code clutter | ℹ️ Low Priority | `app3.js:5-12` |
+
+---
+
+### 🧱 014.4 Pending Fixes (TODO)
+
+- [ ] Add null check before `.length` in `app3.js`: use `(content.match(/react/ig) ?? []).length` to safely handle zero matches.
+- [ ] Add `try/catch` around `fs.readFileSync` in `app3.js` to handle missing or unreadable `README.md` with a clear error message.
+- [ ] Consider using `path.join(__dirname, 'README.md')` in `app3.js` to resolve paths relative to the script location for reliable execution from any directory.
+- [ ] Optionally refactor tokenization to use `split(/\s+/)` and trim/filter empty tokens when implementing word-based counting for more accurate results.
+- [ ] Remove or document commented-out split/filter code in `app3.js:5-12` to reduce clutter.
+
+[↑ top — 014. Lesson 014 — Task - Word counter](#-014-lesson-014--task---word-counter)
+
+
+
 
 
 
